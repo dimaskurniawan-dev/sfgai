@@ -387,7 +387,6 @@ header {
 <div class="bg-mesh"></div>
 <div class="bg-grid"></div>
 
-<!-- Onboarding -->
 <div id="onboarding">
   <div class="onboard-card">
     <div class="brand-mark">
@@ -428,7 +427,12 @@ header {
   </div>
 </div>
 
-<!-- Header -->
+<script>
+  if (localStorage.getItem('sfg_user')) {
+    document.getElementById('onboarding').style.display = 'none';
+  }
+</script>
+
 <header>
   <div class="header-left">
     <div class="header-icon">SFG</div>
@@ -448,7 +452,6 @@ header {
   </div>
 </header>
 
-<!-- Chat -->
 <div id="chat-area">
   <div class="empty-state" id="empty-state">
     <div class="empty-icon">✦</div>
@@ -463,7 +466,6 @@ header {
   </div>
 </div>
 
-<!-- Input -->
 <div id="input-area">
   <div class="input-box">
     <textarea id="msg-input" rows="1" placeholder="Message SFG... / Ketik pesan..." disabled></textarea>
@@ -482,7 +484,6 @@ header {
 
 <div class="toast" id="toast"></div>
 
-<!-- Firebase + App Script -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, addDoc, collection, serverTimestamp, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
@@ -526,8 +527,28 @@ async function loadConfig() {
       document.querySelectorAll('.brand-name span, .header-title span').forEach(el => el.textContent = appName);
       document.querySelectorAll('.header-icon, .brand-icon').forEach(el => el.textContent = appName.substring(0,3).toUpperCase());
       document.title = `${appName} — AI Assistant`;
+
+      // Auto-login jika data tersimpan di LocalStorage
+      const savedUser = localStorage.getItem('sfg_user');
+      if (savedUser) {
+        try {
+          const { name, code, phone } = JSON.parse(savedUser);
+          document.getElementById('user-name').value = name;
+          document.getElementById('country-code').value = code;
+          document.getElementById('phone-number').value = phone;
+          await window.startSession();
+        } catch(e) {
+          localStorage.removeItem('sfg_user');
+          document.getElementById('onboarding').style.display = 'flex';
+        }
+      }
+    } else {
+      document.getElementById('onboarding').style.display = 'flex';
     }
-  } catch(e) { console.warn('Config load:', e); }
+  } catch(e) { 
+    console.warn('Config load:', e); 
+    document.getElementById('onboarding').style.display = 'flex';
+  }
 }
 loadConfig();
 
@@ -537,10 +558,17 @@ window.startSession = async function() {
   const phone = document.getElementById('phone-number').value.trim().replace(/\D/g,'');
   if (!name) { showToast('Please enter your name / Masukkan nama kamu', 'error'); return; }
   if (!phone || phone.length < 6) { showToast('Enter a valid phone number / Masukkan nomor HP yang valid', 'error'); return; }
-  if (!groqApiKey) { showToast('Service not configured. Contact admin.', 'error'); return; }
+  if (!groqApiKey) { 
+    document.getElementById('onboarding').style.display = 'flex';
+    showToast('Service not configured. Contact admin.', 'error'); 
+    return; 
+  }
 
   const fullPhone = code + phone;
   currentUser = { name, phone: fullPhone, initials: name.substring(0,2).toUpperCase() };
+
+  // Simpan session user ke LocalStorage agar tidak perlu input lagi saat refresh
+  localStorage.setItem('sfg_user', JSON.stringify({ name, code, phone }));
 
   // Save/update user in Firestore
   const userRef = doc(db, 'users', fullPhone);
